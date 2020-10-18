@@ -1,7 +1,7 @@
 # Cancer Data
-A repo for code used to recreate results seen in The Elements of Statistical Learning
+A repo for code used to recreate results seen in The Elements of Statistical Learning. We showcase Ridge Regression and the Elastic Net.
 
-To view the html file:  https://robby955.github.io/CancerData/prostatedata.html
+To view the html file of the rendered file:  https://robby955.github.io/CancerData/prostatedata.html
 
 
 The main goal of this document is to provide a refresher on regression methods and model selection using statistical learning. This guide also introduces several useful R functions that are common in Machine Learning.
