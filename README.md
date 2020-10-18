@@ -11,3 +11,5 @@ A second goal of this document is to provide an R code companion of the ‘prost
 The original dataset comes from a study by Stamey et al. (1989)
 
 ![What is this](images/prostatepairs.png)
+
+I created this image using the pairs function in R. It mirrors the image shown in Elements of Statistical Learning.
