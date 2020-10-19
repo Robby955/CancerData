@@ -14,10 +14,14 @@ The original dataset comes from a study by Stamey et al. (1989)
 
 I created this image using the pairs function in R. It mirrors the image shown in Elements of Statistical Learning.
 
-We also obtain estimates using Ridge Regression.
+We also obtain estimates using Ridge Regression:
+
+
 ![What is this](images/ridge.png)
 
 
-And we obtain estimates using the Lasso.
+And we obtain estimates using the Lasso:
+
+
 ![What is this](images/lasso.png)
 
