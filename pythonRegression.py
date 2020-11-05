@@ -8,17 +8,20 @@ os.chdir('C:\\Users\\User\\Desktop\\pyscripts')
 
 
 #Get predictions from a matrix of observations and a given weight matrix
+
 def getPred(x,W):
     return(np.matmul(x,W))
 
 
 #Compute square loss
+
 def Loss(y,ypred):
     l=(y-ypred)**2
     return(l.sum())
 
 
 #Compute mean Square Error
+
 def MSE(X,Y,W):
     return((1/X.shape[0])*sum((Y-np.matmul(X,W))**2))
 
@@ -30,7 +33,7 @@ global cacheWeights
 cacheMSE= {}
 cacheWeights= {}
 
-
+# Function for calculating gradient descent with shrinkage (reg)
 
 def GradDesc(X,Y,learnRate=0.01,epochs=2000,reg=0):
     
@@ -59,7 +62,7 @@ def GradDesc(X,Y,learnRate=0.01,epochs=2000,reg=0):
     return(Weights)
 
 
-
+# Load and wrangle
 
 
 cancerData=pd.read_csv('prostate.txt',delimiter='\t')
@@ -74,6 +77,7 @@ y_train=trainCancer.loc[:,'lpsa']
 x_test= testCancer.drop(columns=['id','lpsa','train'])
 y_test=testCancer.loc[:,'lpsa']
 
+# Scale predictors
 
 x_train_scaled=sklearn.preprocessing.scale(x_train, axis=0, with_mean=True, with_std=True, copy=True)
 
@@ -101,13 +105,14 @@ x_test_scaled=np.append(addBias,x_test_scaled,axis=1)
 
 
 
-# lEAST SQUARES
+# LEAST SQUARES
 
 Wlinear=GradDesc(x_train_scaled,y_train)
 
 
 LinearMSE=MSE(x_test_scaled,y_test,Wlinear)
-#ridgeLambda=ChooseLambda(X_train,Y_train)
+
+# Form Train / Validation set to tune hyperparamters
 
 X_train, X_Validate, Y_train, Y_Validate = sklearn.model_selection.train_test_split( x_train_scaled, y_train, test_size=0.33, random_state=42)
 
@@ -115,6 +120,7 @@ X_train, X_Validate, Y_train, Y_Validate = sklearn.model_selection.train_test_sp
 # Note for Lasso and Elastic, since we use built in scikit learn, we don't use the additional bias 1 terms since this is done
 #for us in the algorithm. Hence we work with X_train[:,1:] and X_Validate[:,1:] which is everything but the first column
 
+# Find best lambda for ridge
 
 def ChooseLambdaRidge(x,y):
     bestMSE=10e100
@@ -134,15 +140,17 @@ def ChooseLambdaRidge(x,y):
             cacheWeights['Ridge']=Wridge
     return(Wridge)
 
+print(f'The ideal lambda value to use is {ridgeLambda}')
 
-Wridge=ChooseLambdaRidge(X_train,Y_train)
+# Get ridge weights and calculate test MSE
+
+Wridge=ChooseLambdaRidge(X_train,Y_train) 
 
 RidgeMSE=MSE(x_test_scaled,y_test,Wridge)
 
 
 
-
-
+# Get ideal lambda for Lasso
 
 
 def ChooseLambdaLasso(x,y):
@@ -197,12 +205,19 @@ def ChooseParametersElasticNet(x,y):
                 bestElasticInt=elasticModel.intercept_
                 bestElasticCoef=elasticModel.coef_
                 bestElasticWeights=np.concatenate((bestElasticInt,bestElasticCoef)).reshape(-1,1)
+                cacheWeights['Elastic']=bestElasticWeights
+
 
     return(bestElasticWeights)
 
 
+# Get Lasso Weights
 Wlasso=ChooseLambdaLasso(X_train[:,1:],Y_train)
+
+# Get Elastic Net Weights
 Welastic=ChooseParametersElasticNet(X_train[:,1:],Y_train)
+
+#Calculate test MSE for Lasso and Elastic Net
 
 LassoMSE=MSE(x_test_scaled,y_test,Wlasso)
 ElasticMSE=MSE(x_test_scaled,y_test,Welastic)
