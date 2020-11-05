@@ -6,22 +6,31 @@ import os
 
 os.chdir('C:\\Users\\User\\Desktop\\pyscripts')
 
-########## Define Helper Functions ###########
 
+#Get predictions from a matrix of observations and a given weight matrix
 def getPred(x,W):
     return(np.matmul(x,W))
 
+
+#Compute square loss
 def Loss(y,ypred):
     l=(y-ypred)**2
     return(l.sum())
-    
-def Cost(X,Y,W):
-    cost=0
-    m=X.shape[0]
-    getPred=np.matmul(x,W)
-    cost=sum((Y-getPred)**2)
-    return((1/2*m)*cost)    
-    
+
+
+#Compute mean Square Error
+def MSE(X,Y,W):
+    return((1/X.shape[0])*sum((Y-np.matmul(X,W))**2))
+
+
+#Store MSE
+global cacheMSE
+global cacheWeights
+
+cacheMSE= {}
+cacheWeights= {}
+
+
 
 def GradDesc(X,Y,learnRate=0.01,epochs=2000,reg=0):
     
@@ -46,27 +55,12 @@ def GradDesc(X,Y,learnRate=0.01,epochs=2000,reg=0):
             Weights[j]=Weights[j]-(1/m)*learnRate*(np.matmul(X[:,j].transpose(),predictions-Y)+sum(np.dot(Weights[j],reg)))
 
 
-    plt.plot([i for i in range(epochs)],cacheLoss)
-    plt.xlabel("Epoch")
-    plt.ylabel("Cost")
-    plt.title("Cost function per each epoch")
-    plt.show()
 
     return(Weights)
 
 
 
-def MSE(X,Y,W):
-    return((1/X.shape[0])*sum((Y-np.matmul(X,W))**2))
-    
-    
-    
-    
-#######################################################
 
-
-
-### Read in Data and make Train-Dev and Test sets ###
 
 cancerData=pd.read_csv('prostate.txt',delimiter='\t')
 
@@ -85,14 +79,8 @@ x_train_scaled=sklearn.preprocessing.scale(x_train, axis=0, with_mean=True, with
 
 x_test_scaled=sklearn.preprocessing.scale(x_test, axis=0, with_mean=True, with_std=True, copy=True)
 
+# Turn into numpy arrays with appropriate shape
 
-# Linear Regression 
-
-# Using scikit learn #
-model=sklearn.linear_model.LinearRegression()
-model.fit(x_train_scaled,y_train)
-
-# Form into arrays with appropriate shape to plug into custom gradient descent, we had a column of ones for the intercept #
 
 x_train_scaled=np.array(x_train_scaled)
 y_train=np.array(y_train)
@@ -101,6 +89,9 @@ y_train=y_train.reshape(-1,1)
 y_test=np.array(y_test)
 y_test=y_test.reshape(-1,1)
 
+# Add a column of ones to represent the bias terms
+
+
 addBias=np.ones([x_train_scaled.shape[0],1])
 
 x_train_scaled=np.append(addBias,x_train_scaled,axis=1)
@@ -108,53 +99,110 @@ x_train_scaled=np.append(addBias,x_train_scaled,axis=1)
 addBias=np.ones([x_test_scaled.shape[0],1])
 x_test_scaled=np.append(addBias,x_test_scaled,axis=1)
 
-GradDesc(x_train_scaled,y_train)
+
+
+# lEAST SQUARES
+
 Wlinear=GradDesc(x_train_scaled,y_train)
 
-# MSE on test set for linear regression
-print(MSE(x_test_scaled,y_test,Wlinear))
 
-# Using closed form #
-
-w=np.matmul(np.matmul(np.linalg.inv(np.matmul(x_train_scaled.transpose(),x_train_scaled)),x_train_scaled.transpose()),y_train)
-
-# Ridge Regression
-
-# Form Train- Validation - Test set for tuning hyperparamater lambda
+LinearMSE=MSE(x_test_scaled,y_test,Wlinear)
+#ridgeLambda=ChooseLambda(X_train,Y_train)
 
 X_train, X_Validate, Y_train, Y_Validate = sklearn.model_selection.train_test_split( x_train_scaled, y_train, test_size=0.33, random_state=42)
 
-def getRidge(x,y,reg=0):
-    
-    wRidge=np.matmul(np.matmul(np.linalg.inv(np.matmul(x.transpose(),x)+reg*np.identity(x.shape[1])),x.transpose()),y)
-    
-    return(wRidge)
+
+# Note for Lasso and Elastic, since we use built in scikit learn, we don't use the additional bias 1 terms since this is done
+#for us in the algorithm. Hence we work with X_train[:,1:] and X_Validate[:,1:] which is everything but the first column
 
 
-
-
-def ChooseLambda(x,y):
+def ChooseLambdaRidge(x,y):
     bestMSE=10e100
     
-    lamList=[l*0.1 for l in range(0,100)]
+    lamList=[l*0.05 for l in range(0,300)]
 
-    global bestWeight
+    global Wridge
+    global ridgeLambda
     
     for l in lamList:
-        W=getRidge(x,y,reg=l)
-        if MSE(X_Validate,Y_Validate,W)< bestMSE:
-            bestMSE=MSE(X_Validate,Y_Validate,W)
-            bestLambda=l
-            bestWeight=W
-    return([bestMSE,bestLambda,bestWeight])
+        Wr=GradDesc(x,y,reg=l)
+        if MSE(X_Validate,Y_Validate,Wr)< bestMSE:
+            bestMSE=MSE(X_Validate,Y_Validate,Wr)
+            ridgeLambda=l
+            Wridge=Wr
+            cacheMSE['Ridge']=bestMSE
+            cacheWeights['Ridge']=Wridge
+    return(Wridge)
+
+
+Wridge=ChooseLambdaRidge(X_train,Y_train)
+
+RidgeMSE=MSE(x_test_scaled,y_test,Wridge)
 
 
 
-ChooseLambda(X_train,Y_train)
-
-# The MSE on test set using Ridge Regression
-print(MSE(x_test_scaled,y_test,bestWeight))
 
 
 
 
+def ChooseLambdaLasso(x,y):
+    bestMSE=10e100
+    
+    alphaList=[l*0.05 for l in range(1,200)]
+    
+    global bestLassoWeights
+    
+    for a in alphaList:
+        lassoModel=sklearn.linear_model.Lasso(alpha=a,max_iter=3000)
+        lassoModel.fit(x,y)
+        getPred=lassoModel.predict(X_Validate[:,1:]).reshape(-1,1)
+        
+        MSE=sum((Y_Validate-getPred)**2)
+        if MSE< bestMSE:
+            bestMSE=MSE
+            bestAlpha=a
+            bestLassoInt=lassoModel.intercept_
+            bestLassoCoef=lassoModel.coef_
+            bestLassoWeights=np.concatenate((bestLassoInt,bestLassoCoef)).reshape(-1,1)
+            cacheWeights['Lasso']=bestLassoWeights
+
+    return(bestLassoWeights)
+
+
+
+
+def ChooseParametersElasticNet(x,y):
+    bestMSE=10e100
+    
+    regList=[l*0.02 for l in range(0,700)]
+    ratio=[i*0.025 for i in range(0,41)]
+   
+    global bestElasticInt
+    global bestElasticCoef
+    global bestAlpha
+    global bestRatio
+    global bestElasticWeights
+    
+    for l1 in regList:
+        for r in ratio:
+            elasticModel=sklearn.linear_model.ElasticNet(alpha=l1,l1_ratio=r,max_iter=3000)
+            elasticModel.fit(x,y)
+            getPred=elasticModel.predict(X_Validate[:,1:]).reshape(-1,1)
+        
+            MSE=sum((Y_Validate-getPred)**2)
+            if MSE< bestMSE:
+                bestMSE=MSE
+                bestAlpha=l1
+                bestRatio=r
+                bestElasticInt=elasticModel.intercept_
+                bestElasticCoef=elasticModel.coef_
+                bestElasticWeights=np.concatenate((bestElasticInt,bestElasticCoef)).reshape(-1,1)
+
+    return(bestElasticWeights)
+
+
+Wlasso=ChooseLambdaLasso(X_train[:,1:],Y_train)
+Welastic=ChooseParametersElasticNet(X_train[:,1:],Y_train)
+
+LassoMSE=MSE(x_test_scaled,y_test,Wlasso)
+ElasticMSE=MSE(x_test_scaled,y_test,Welastic)
