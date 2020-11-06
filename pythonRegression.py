@@ -6,34 +6,28 @@ import os
 
 os.chdir('C:\\Users\\User\\Desktop\\pyscripts')
 
+import random
+
+random.seed(10)
 
 #Get predictions from a matrix of observations and a given weight matrix
-
 def getPred(x,W):
     return(np.matmul(x,W))
 
 
 #Compute square loss
-
 def Loss(y,ypred):
     l=(y-ypred)**2
     return(l.sum())
 
 
 #Compute mean Square Error
-
 def MSE(X,Y,W):
     return((1/X.shape[0])*sum((Y-np.matmul(X,W))**2))
 
 
-#Store MSE
-global cacheMSE
-global cacheWeights
 
-cacheMSE= {}
-cacheWeights= {}
 
-# Function for calculating gradient descent with shrinkage (reg)
 
 def GradDesc(X,Y,learnRate=0.01,epochs=2000,reg=0):
     
@@ -62,9 +56,6 @@ def GradDesc(X,Y,learnRate=0.01,epochs=2000,reg=0):
     return(Weights)
 
 
-# Load and wrangle
-
-
 cancerData=pd.read_csv('prostate.txt',delimiter='\t')
 
 trainCancer=cancerData[cancerData.loc[:,'train']=='T']
@@ -77,7 +68,6 @@ y_train=trainCancer.loc[:,'lpsa']
 x_test= testCancer.drop(columns=['id','lpsa','train'])
 y_test=testCancer.loc[:,'lpsa']
 
-# Scale predictors
 
 x_train_scaled=sklearn.preprocessing.scale(x_train, axis=0, with_mean=True, with_std=True, copy=True)
 
@@ -105,14 +95,13 @@ x_test_scaled=np.append(addBias,x_test_scaled,axis=1)
 
 
 
-# LEAST SQUARES
+# lEAST SQUARES
 
 Wlinear=GradDesc(x_train_scaled,y_train)
 
 
 LinearMSE=MSE(x_test_scaled,y_test,Wlinear)
-
-# Form Train / Validation set to tune hyperparamters
+#ridgeLambda=ChooseLambda(X_train,Y_train)
 
 X_train, X_Validate, Y_train, Y_Validate = sklearn.model_selection.train_test_split( x_train_scaled, y_train, test_size=0.33, random_state=42)
 
@@ -120,14 +109,15 @@ X_train, X_Validate, Y_train, Y_Validate = sklearn.model_selection.train_test_sp
 # Note for Lasso and Elastic, since we use built in scikit learn, we don't use the additional bias 1 terms since this is done
 #for us in the algorithm. Hence we work with X_train[:,1:] and X_Validate[:,1:] which is everything but the first column
 
-# Find best lambda for ridge
 
-def ChooseLambdaRidge(x,y):
+
+
+def getRidgeLambda(x,y):
+    
     bestMSE=10e100
     
     lamList=[l*0.05 for l in range(0,300)]
 
-    global Wridge
     global ridgeLambda
     
     for l in lamList:
@@ -135,89 +125,84 @@ def ChooseLambdaRidge(x,y):
         if MSE(X_Validate,Y_Validate,Wr)< bestMSE:
             bestMSE=MSE(X_Validate,Y_Validate,Wr)
             ridgeLambda=l
-            Wridge=Wr
-            cacheMSE['Ridge']=bestMSE
-            cacheWeights['Ridge']=Wridge
-    return(Wridge)
+          
+    
+    return(ridgeLambda)
 
-print(f'The ideal lambda value to use is {ridgeLambda}')
 
-# Get ridge weights and calculate test MSE
+ridgeLambda=getRidgeLambda(X_train, Y_train)
+print(f'The ideal lambda for ridge, according to CV is {ridgeLambda}')
 
-Wridge=ChooseLambdaRidge(X_train,Y_train) 
-
+Wridge=GradDesc(x_train_scaled,y_train,reg=ridgeLambda)
 RidgeMSE=MSE(x_test_scaled,y_test,Wridge)
 
 
-
-# Get ideal lambda for Lasso
-
-
-def ChooseLambdaLasso(x,y):
+def getLassoLambda(x,y):
     bestMSE=10e100
     
-    alphaList=[l*0.05 for l in range(1,200)]
+    alphaList=[l*0.1 for l in range(1,200)]
     
-    global bestLassoWeights
+    
+   # global lassoLambda
     
     for a in alphaList:
-        lassoModel=sklearn.linear_model.Lasso(alpha=a,max_iter=3000)
+        lassoModel=sklearn.linear_model.Lasso(alpha=a,max_iter=5000,fit_intercept=False)
         lassoModel.fit(x,y)
-        getPred=lassoModel.predict(X_Validate[:,1:]).reshape(-1,1)
+        getPred=lassoModel.predict(X_Validate).reshape(-1,1)
         
         MSE=sum((Y_Validate-getPred)**2)
-        if MSE< bestMSE:
+        if MSE < bestMSE:
             bestMSE=MSE
-            bestAlpha=a
-            bestLassoInt=lassoModel.intercept_
-            bestLassoCoef=lassoModel.coef_
-            bestLassoWeights=np.concatenate((bestLassoInt,bestLassoCoef)).reshape(-1,1)
-            cacheWeights['Lasso']=bestLassoWeights
+            lassoLambda=a
 
-    return(bestLassoWeights)
+            
+    return(lassoLambda)
+
+lassoLambda=getLassoLambda(X_train,Y_train)
+
+print(f'The ideal lambda for Lasso is {lassoLambda}')
 
 
+fitLasso=sklearn.linear_model.Lasso(alpha=lassoLambda,fit_intercept=False)
+fitLasso.fit(x_train_scaled,y_train)
+Wlasso=fitLasso.coef_
+pz=fitLasso.predict(x_test_scaled).reshape(-1,1)
+LassoMSE=(1/x_test_scaled.shape[0])*sum((y_test-pz)**2)
 
-
-def ChooseParametersElasticNet(x,y):
+def getParametersElasticNet(x,y):
     bestMSE=10e100
     
-    regList=[l*0.02 for l in range(0,700)]
-    ratio=[i*0.025 for i in range(0,41)]
-   
-    global bestElasticInt
-    global bestElasticCoef
+    regList=[l*0.1 for l in range(1,500)]
+    ratio=[i*0.1 for i in range(1,200)]
+
     global bestAlpha
     global bestRatio
     global bestElasticWeights
     
     for l1 in regList:
         for r in ratio:
-            elasticModel=sklearn.linear_model.ElasticNet(alpha=l1,l1_ratio=r,max_iter=3000)
+            elasticModel=sklearn.linear_model.ElasticNet(alpha=l1,l1_ratio=r,fit_intercept=False,max_iter=3000,tol=1e-5)
             elasticModel.fit(x,y)
-            getPred=elasticModel.predict(X_Validate[:,1:]).reshape(-1,1)
+            getPred=elasticModel.predict(X_Validate).reshape(-1,1)
         
             MSE=sum((Y_Validate-getPred)**2)
             if MSE< bestMSE:
                 bestMSE=MSE
                 bestAlpha=l1
                 bestRatio=r
-                bestElasticInt=elasticModel.intercept_
-                bestElasticCoef=elasticModel.coef_
-                bestElasticWeights=np.concatenate((bestElasticInt,bestElasticCoef)).reshape(-1,1)
-                cacheWeights['Elastic']=bestElasticWeights
-
-
+                bestElasticWeights=elasticModel.coef_
+                
     return(bestElasticWeights)
 
+elasticWeights=getParametersElasticNet(X_train,Y_train)
 
-# Get Lasso Weights
-Wlasso=ChooseLambdaLasso(X_train[:,1:],Y_train)
 
-# Get Elastic Net Weights
-Welastic=ChooseParametersElasticNet(X_train[:,1:],Y_train)
+print(f'The ideal alpha for elastic net is {bestAlpha} and the best ratio is {bestRatio}')
 
-#Calculate test MSE for Lasso and Elastic Net
 
-LassoMSE=MSE(x_test_scaled,y_test,Wlasso)
-ElasticMSE=MSE(x_test_scaled,y_test,Welastic)
+fitElastic=sklearn.linear_model.ElasticNet(alpha=bestAlpha,l1_ratio=bestRatio,fit_intercept=False)
+fitElastic.fit(x_train_scaled,y_train)
+Welastic=fitElastic.coef_
+pz=fitElastic.predict(x_test_scaled).reshape(-1,1)
+ElasticMSE=(1/x_test_scaled.shape[0])*sum((y_test-pz)**2)
+print(ElasticMSE)
