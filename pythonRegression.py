@@ -95,21 +95,17 @@ x_test_scaled=np.append(addBias,x_test_scaled,axis=1)
 
 
 
-# lEAST SQUARES
+# LEAST SQUARES
 
 Wlinear=GradDesc(x_train_scaled,y_train)
 
 
 LinearMSE=MSE(x_test_scaled,y_test,Wlinear)
-#ridgeLambda=ChooseLambda(X_train,Y_train)
+
+
+# Form validation data for training hyperparameters
 
 X_train, X_Validate, Y_train, Y_Validate = sklearn.model_selection.train_test_split( x_train_scaled, y_train, test_size=0.33, random_state=42)
-
-
-# Note for Lasso and Elastic, since we use built in scikit learn, we don't use the additional bias 1 terms since this is done
-#for us in the algorithm. Hence we work with X_train[:,1:] and X_Validate[:,1:] which is everything but the first column
-
-
 
 
 def getRidgeLambda(x,y):
@@ -131,6 +127,7 @@ def getRidgeLambda(x,y):
 
 
 ridgeLambda=getRidgeLambda(X_train, Y_train)
+
 print(f'The ideal lambda for ridge, according to CV is {ridgeLambda}')
 
 Wridge=GradDesc(x_train_scaled,y_train,reg=ridgeLambda)
@@ -142,8 +139,6 @@ def getLassoLambda(x,y):
     
     alphaList=[l*0.1 for l in range(1,200)]
     
-    
-   # global lassoLambda
     
     for a in alphaList:
         lassoModel=sklearn.linear_model.Lasso(alpha=a,max_iter=5000,fit_intercept=False)
